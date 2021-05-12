@@ -2,7 +2,7 @@ import cv2
 import math
 import numpy as np
 from deskew import determine_skew
-
+from matplotlib import pyplot as plt
 
 def rotate(image, angle, background):
     old_width, old_height = image.shape[:2]
@@ -59,33 +59,34 @@ def sort_contours(cnts, method="left-to-right"):
     return (cnts, boundingBoxes)
 
 
-def crop_empty(img, padding=2):
+def get_nonempty_bbox(img, padding=2):
+    coords = cv2.findNonZero(img)  # Find all non-zero points (text)
+    x, y, w, h = cv2.boundingRect(coords)  # Find minimum spanning bounding box
+
+    y_from = max(0, y - padding)
+    y_till = min(img.shape[0], y + h + padding)
+    x_from = max(0, x - padding)
+    x_till = min(img.shape[1], x + w + padding)
+    return (x_from, x_till, y_from, y_till)
+
+
+def crop_empty(img, img_bin, padding=2):
     """Crops image to non-empty bounding rect"""
 
-    gray = 255*(img < 128).astype(np.uint8) # To invert the text to white
-    coords = cv2.findNonZero(gray) # Find all non-zero points (text)
-    x, y, w, h = cv2.boundingRect(coords) # Find minimum spanning bounding box
-    
-    y_from = max(0, y-padding)
-    y_till = min(img.shape[0], y+h+padding)
-    x_from = max(0, x-padding)
-    x_till = min(img.shape[1], x+w+padding)
-    
+    (x_from, x_till, y_from, y_till) = get_nonempty_bbox(img_bin, padding=padding)
     cropped = img[y_from:y_till, x_from:x_till] # Crop the image - note we do this on the original image
     return cropped
 
 
 def binarize_image(img):
     # Thresholding the image
-    # (thresh, img_bin) = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-
     img_bin = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-
-    # blur = cv2.GaussianBlur(img, (3, 3), 0)
-    # _, img_bin = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
     # Invert the image
     img_bin = 255 - img_bin
+    #
+    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 2))
+    # img_bin = cv2.dilate(img_bin, kernel, iterations=1)
+
     return img_bin
 
 
@@ -94,9 +95,9 @@ def get_lines_images(img_bin):
         img_bin: binarized image
     """
     # Defining a kernel length
-    kernel_length = np.array(img_bin).shape[1]//80
+    kernel_length = np.array(img_bin).shape[1]//100
 
-    # A verticle kernel of (1 X kernel_length), which will detect all the verticle lines from the image.
+    # A vertical kernel of (1 X kernel_length), which will detect all the vertical lines from the image.
     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_length))
     # A horizontal kernel of (kernel_length X 1), which will help to detect all the horizontal line from the image.
     horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))

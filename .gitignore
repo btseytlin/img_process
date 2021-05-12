@@ -2,3 +2,4 @@
 images
 tmp_imgs
 .idea
+*.pyc
