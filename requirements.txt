@@ -1,0 +1,4 @@
+opencv-python==4.4.0
+deskew==0.10.28
+numpy
+Pillow
