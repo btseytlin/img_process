@@ -24,7 +24,7 @@ def deskew(img):
 
 
 def denoise(img):
-    dst = cv2.fastNlMeansDenoising(img, None, 5, 21, 7) 
+    dst = cv2.fastNlMeansDenoising(img, None, 10, 7, 21)
     return dst
 
 
@@ -109,8 +109,7 @@ def get_lines_images(img_bin):
     # A horizontal kernel of (kernel_length X 1), which will help to detect all the horizontal line from the image.
     horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length, 1))
     # A kernel of (3 X 3) ones.
-    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    
+
     # Morphological operation to detect vertical lines from an image
     img_temp1 = cv2.erode(img_bin, vertical_kernel, iterations=3)
     vertical_lines_img = cv2.dilate(img_temp1, vertical_kernel, iterations=3)
@@ -118,6 +117,10 @@ def get_lines_images(img_bin):
     # Morphological operation to detect horizontal lines from an image
     img_temp2 = cv2.erode(img_bin, horiz_kernel, iterations=3)
     horizontal_lines_img = cv2.dilate(img_temp2, horiz_kernel, iterations=3)
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    vertical_lines_img = cv2.dilate(vertical_lines_img, kernel, iterations=2)
+    horizontal_lines_img = cv2.dilate(horizontal_lines_img, kernel, iterations=2)
 
     return vertical_lines_img, horizontal_lines_img
 

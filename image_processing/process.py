@@ -20,7 +20,7 @@ def extract_table_pos(table_contour):
 
 
 def get_rectangles_image(vertical_lines_img, horizontal_lines_img):
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 
     # This function helps to add two image with specific weight parameter to get a third image as summation of two image.
     img_final_bin = cv2.addWeighted(vertical_lines_img, 0.5, horizontal_lines_img, 0.5, 0.0)
@@ -75,7 +75,7 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
     # 2. Bbox has small width
     # 3. Bbox has spans the whole image from top to bottom
     def is_vertical_line_box(bbox):
-        if bbox[2] >= 0.02 * img.shape[1]:
+        if bbox[2] >= 0.1 * img.shape[1]:
             # Too wide
             return False
         if bbox[3] < 0.95 * img.shape[0]:
@@ -96,13 +96,12 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
     # 2. Bbox has small height
     # 3. Bbox has spans the whole image from left to right
     def is_horizontal_line_box(bbox):
-        if bbox[3] >= 0.02 * img.shape[0]:
+        if bbox[3] >= 0.1 * img.shape[0]:
             # Height of box too large
             return False
         if bbox[2] < 0.95 * img.shape[1]:
             # Does not span whole image from left to right
             return False
-        # print('yes')
         return True
     horiz_bboxes = [bbox for bbox in horiz_bboxes if is_horizontal_line_box(bbox)]
 
@@ -165,7 +164,6 @@ def extract_bottom_boxes(img, horizontal_lines_img, padding=5):
         if bbox[2] < 0.7 * img.shape[1]:
             # Does not span whole image from left to right
             return False
-        # print('yes')
         return True
 
     horiz_bboxes = [bbox for bbox in horiz_bboxes if is_horizontal_line_box(bbox)]
@@ -199,6 +197,10 @@ def get_contours_image(img):
     tmp_img = np.array(img)
     cv2.drawContours(tmp_img, contours, -1, 0, 3)
     return tmp_img
+
+
+def equalize_hist(img):
+    return cv2.equalizeHist(img)
 
 
 def extract_blocks(img, debug=False):
@@ -254,11 +256,6 @@ def extract_blocks(img, debug=False):
 
     save_np_img(table_img, 'tmp_imgs/4_0_table.png')
     save_np_img(bottom_img, 'tmp_imgs/4_1_bottom.png')
-
-    table_img = deskew(table_img)
-    save_np_img(table_img, 'tmp_imgs/4_2_table_deskew.png')
-    bottom_img = deskew(bottom_img)
-    save_np_img(bottom_img, 'tmp_imgs/4_3_bottom_deskew.png')
 
     table_vertical_lines = crop_rect(vertical_lines_img, *table_loc)
     table_horizontal_lines = crop_rect(horizontal_lines_img, *table_loc)
