@@ -70,12 +70,16 @@ def get_nonempty_bbox(img, padding=2):
     return (x_from, x_till, y_from, y_till)
 
 
+def crop_rect(img, x_from, x_till, y_from, y_till):
+    cropped = img[y_from:y_till, x_from:x_till]  # Crop the image - note we do this on the original image
+    return cropped
+
+
 def crop_empty(img, img_bin, padding=2):
     """Crops image to non-empty bounding rect"""
 
     (x_from, x_till, y_from, y_till) = get_nonempty_bbox(img_bin, padding=padding)
-    cropped = img[y_from:y_till, x_from:x_till] # Crop the image - note we do this on the original image
-    return cropped
+    return crop_rect(img, x_from, x_till, y_from, y_till)
 
 
 def binarize_image(img):
