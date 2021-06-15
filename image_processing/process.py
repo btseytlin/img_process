@@ -5,7 +5,7 @@ import cv2
 import math
 import numpy as np
 from matplotlib import pyplot as plt
-from .utils import (resize_to_A4, deskew, denoise, crop_empty, crop_rect, sort_contours, get_lines_images, detect_text,
+from .utils import (resize, deskew, denoise, crop_empty, crop_rect, sort_contours, get_lines_images, detect_text,
                     binarize_image, get_nonempty_bbox)
 
 
@@ -150,9 +150,6 @@ def extract_bottom_boxes(img, horizontal_lines_img, padding=5):
     horiz_contours, hierarchy = cv2.findContours(horizontal_lines_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     horiz_contours, horiz_bboxes = sort_contours(horiz_contours, method='top-to-bottom')
 
-    plt.figure()
-    plt.imshow(img)
-    plt.show()
 
     # filter out bboxes for horizontal lines:
     # 1. Bbox is not on the top of image
@@ -212,11 +209,11 @@ def extract_blocks(img, debug=False):
 
         os.makedirs('tmp_imgs')
 
-    # img = deskew(img)
-    # save_np_img(img, 'tmp_imgs/0_0_deskewed.png')
+    img = deskew(img)
+    save_np_img(img, 'tmp_imgs/0_0_deskewed.png')
 
-    # img = resize_to_A4(img)
-    # save_np_img(img, 'tmp_imgs/0_1_resized.png')
+    img = resize(img)
+    save_np_img(img, 'tmp_imgs/0_1_resized.png')
 
     img = denoise(img)
     save_np_img(img, 'tmp_imgs/0_2_denoised.png')

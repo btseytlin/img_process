@@ -16,16 +16,19 @@ def rotate(image, angle, background):
     rot_mat[0, 2] += (height - old_height) / 2
     return cv2.warpAffine(image, rot_mat, (int(round(height)), int(round(width))), borderValue=background)
 
+
 def deskew(img):
     angle = determine_skew(img)
     rotated = rotate(img, angle, 255)
     return rotated
 
+
 def denoise(img):
     dst = cv2.fastNlMeansDenoising(img, None, 5, 21, 7) 
     return dst
 
-def resize_to_A4(img, target_width=2400):
+
+def resize(img, target_width=1280):
     """Resize the page so that largest side is target_width and aspec ratio is preserved"""
     w, h = img.shape[1], img.shape[0]
     inter = cv2.INTER_AREA
