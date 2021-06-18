@@ -6,7 +6,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 from .utils import (resize, deskew, denoise, crop_empty, crop_rect, sort_contours, get_lines_images, detect_text,
-                    binarize_image, get_nonempty_bbox)
+                    binarize_image, get_nonempty_bbox, rotate_by_angle)
 
 
 def extract_table_pos(table_contour):
@@ -78,15 +78,15 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
         if bbox[2] >= 0.1 * img.shape[1]:
             # Too wide
             return False
-        if bbox[3] < 0.95 * img.shape[0]:
+        if bbox[3] < 0.8 * img.shape[0]:
             # Does not span whole image from top to bottom
             return False
         return True
 
     vert_bboxes = [bbox for bbox in vert_bboxes if is_vertical_line_box(bbox)]
 
-    expected_vert_lines = 8
-    assert len(vert_bboxes) == expected_vert_lines,  f'Expected to find {expected_vert_lines} vertical lines in table, found {len(vert_bboxes)}'
+    expected_vert_lines = (7, 8)
+    assert len(vert_bboxes) in expected_vert_lines,  f'Expected to find {expected_vert_lines} vertical lines in table, found {len(vert_bboxes)}'
     
     horiz_contours, hierarchy = cv2.findContours(horizontal_lines_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     horiz_contours, horiz_bboxes = sort_contours(horiz_contours, method='top-to-bottom')
@@ -99,7 +99,7 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
         if bbox[3] >= 0.1 * img.shape[0]:
             # Height of box too large
             return False
-        if bbox[2] < 0.95 * img.shape[1]:
+        if bbox[2] < 0.8 * img.shape[1]:
             # Does not span whole image from left to right
             return False
         return True
@@ -116,6 +116,8 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
         4: 'date',
     }
     lines = []
+
+    vert_line_iterator = range(1, len(vert_bboxes)-2) if len(vert_bboxes) == 8 else range(0, len(vert_bboxes)-2)
     for i in range(1, len(horiz_bboxes)-1):
         line = {}
         padding = -2
@@ -123,11 +125,11 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
         line_y_start = max(horiz_bboxes[i][1]-padding, 0)
         line_y_end = min(horiz_bboxes[i+1][1]+padding, img.shape[0])
 
-        for j in range(1, len(vert_bboxes)-2):
+        for n_field, j in enumerate(vert_line_iterator):
             box_x_start = max(vert_bboxes[j][0]-padding, 0)
             box_x_end = min(vert_bboxes[j+1][0]+padding, img.shape[1])
             box_loc = (box_x_start, box_x_end, line_y_start, line_y_end)
-            line[fields[j-1]] = crop_rect(img, *box_loc)
+            line[fields[n_field]] = crop_rect(img, *box_loc)
         assert len(line.keys()) == len(fields.keys()), f'Expected to find all required columns for line, found only: {str(line.keys())}'
         lines.append(line)
     assert len(lines) == 5, f'Expected to find 5 lines in table, found: {len(lines)}'
@@ -168,7 +170,7 @@ def extract_bottom_boxes(img, horizontal_lines_img, padding=5):
 
     horiz_bboxes = [bbox for bbox in horiz_bboxes if is_horizontal_line_box(bbox)]
     expected_lines = 5
-    assert len(horiz_bboxes) == expected_lines, f'Expected {expected_lines} lines in botton, found: {len(horiz_bboxes)}'
+    assert len(horiz_bboxes) >= expected_lines, f'Expected at least {expected_lines} lines in bottom, found: {len(horiz_bboxes)}'
 
     # Extract images of lines
     line_imgs = []
@@ -178,7 +180,7 @@ def extract_bottom_boxes(img, horizontal_lines_img, padding=5):
 
     line_imgs.append(img[y_from:y_to])
     
-    for i in range(len(horiz_bboxes)-1):
+    for i in range(expected_lines-1):
         y_from = max(horiz_bboxes[i][1], 0)
         y_to = min(horiz_bboxes[i+1][1] + padding, img.shape[1])
         line_img = img[y_from:y_to]
@@ -203,6 +205,14 @@ def equalize_hist(img):
     return cv2.equalizeHist(img)
 
 
+def rotate_horizontal(img):
+    if img.shape[0] > img.shape[1]:
+        img=cv2.transpose(img)
+        img=cv2.flip(img, flipCode=1)
+        return img
+
+    return img
+
 def extract_blocks(img, debug=False):
 
     if debug:
@@ -211,7 +221,10 @@ def extract_blocks(img, debug=False):
 
         os.makedirs('tmp_imgs')
 
-    img = deskew(img)
+    img = rotate_horizontal(img)
+    save_np_img(img, 'tmp_imgs/0_0_rotated.png')
+
+    img, angle = deskew(img)
     save_np_img(img, 'tmp_imgs/0_0_deskewed.png')
 
     img = resize(img)
@@ -257,8 +270,17 @@ def extract_blocks(img, debug=False):
     save_np_img(table_img, 'tmp_imgs/4_0_table.png')
     save_np_img(bottom_img, 'tmp_imgs/4_1_bottom.png')
 
-    table_vertical_lines = crop_rect(vertical_lines_img, *table_loc)
-    table_horizontal_lines = crop_rect(horizontal_lines_img, *table_loc)
+    bottom_img, bottom_deskew_angle = deskew(bottom_img)
+    save_np_img(bottom_img, 'tmp_imgs/4_3_bottom_deskew.png')
+
+    table_img = rotate_by_angle(table_img, bottom_deskew_angle)
+    save_np_img(table_img, 'tmp_imgs/4_2_table_deskew.png')
+
+
+    
+
+    table_vertical_lines = rotate_by_angle(crop_rect(vertical_lines_img, *table_loc), bottom_deskew_angle, fill=0)
+    table_horizontal_lines = rotate_by_angle(crop_rect(horizontal_lines_img, *table_loc), bottom_deskew_angle, fill=0)
 
     save_np_img(table_vertical_lines, 'tmp_imgs/5_0_table_vertical_lines.png')
     save_np_img(table_horizontal_lines, 'tmp_imgs/5_1_table_horizontal_lines.png')
@@ -270,7 +292,7 @@ def extract_blocks(img, debug=False):
         for key in line.keys():
             save_np_img(line[key], f'tmp_imgs/lines/{i}_{key}.png')
 
-    bottom_horizontal_lines = crop_rect(horizontal_lines_img, *bottom_loc)
+    bottom_horizontal_lines = rotate_by_angle(crop_rect(horizontal_lines_img, *bottom_loc), bottom_deskew_angle, fill=0)
 
     save_np_img(bottom_horizontal_lines, 'tmp_imgs/5_2_bottom_horizontal_lines.png')
 

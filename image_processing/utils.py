@@ -19,9 +19,14 @@ def rotate(image, angle, background):
 
 def deskew(img):
     angle = determine_skew(img)
-    rotated = rotate(img, angle, 255)
-    return rotated
+    if abs(angle) <= 45:
+        img = rotate(img, angle, 255)
+    else:
+        angle = 0
+    return img, angle
 
+def rotate_by_angle(img, angle, fill=255):
+    return rotate(img, angle, fill)
 
 def denoise(img):
     dst = cv2.fastNlMeansDenoising(img, None, 10, 7, 21)
@@ -101,6 +106,7 @@ def get_lines_images(img_bin):
     """
         img_bin: binarized image
     """
+
     # Defining a kernel length
     kernel_length = np.array(img_bin).shape[1]//100
 
