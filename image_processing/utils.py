@@ -131,13 +131,30 @@ def get_lines_images(img_bin):
     return vertical_lines_img, horizontal_lines_img
 
 
+# def detect_has_text(img):
+#     blur = cv2.GaussianBlur(img, (3,3), 0)
+#     thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,11,30)
+
+
+def center_crop(img, ratio):
+    w = int(ratio * img.shape[1])
+    h = int(ratio * img.shape[0])
+    center_x = img.shape[1] / 2
+    center_y = img.shape[0] / 2
+    x = center_x - w/2
+    y = center_y - h/2
+
+    img = img[int(y):int(y+h), int(x):int(x+w)]
+    return img    
+
+
 def detect_text(img, area_threshold=5000):
     blur = cv2.GaussianBlur(img, (3,3), 0)
     thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,11,30)
 
     # Dilate to combine adjacent text contours
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4,4))
-    dilate = cv2.dilate(thresh, kernel, iterations=4)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+    dilate = cv2.dilate(thresh, kernel, iterations=3)
     
     # Find contours, highlight text areas, and extract ROIs
     cnts = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -146,12 +163,27 @@ def detect_text(img, area_threshold=5000):
     bboxes = []
     ROI_number = 0
     for c in cnts:
-        area = cv2.contourArea(c)
-        
-        if area > area_threshold:
-            x,y,w,h = cv2.boundingRect(c)
-            
-            
+        x,y,w,h = cv2.boundingRect(c)
+        area = w * h
+
+        if w * h > area_threshold:
             bboxes.append((x, y, w, h))
     return bboxes
 
+def is_empty_of_text(img, min_width=10, min_height=10):
+    img = center_crop(img, ratio=0.9)
+    initial_shape = img.shape
+    area_threshold = 0.05 * initial_shape[0] * initial_shape[1]
+
+    blur = cv2.GaussianBlur(img, (3,3), 0)
+    thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,11,30)
+
+    img = crop_empty(img, thresh)
+    
+    if img.shape[0] * img.shape[1] < area_threshold:
+        return True
+    
+    if img.shape[0] <= min_width or img.shape[1] <= min_height:
+        return True
+
+    return False

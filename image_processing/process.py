@@ -6,7 +6,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 from .utils import (resize, deskew, denoise, crop_empty, crop_rect, sort_contours, get_lines_images, detect_text,
-                    binarize_image, get_nonempty_bbox, rotate_by_angle)
+                    binarize_image, get_nonempty_bbox, rotate_by_angle, is_empty_of_text)
 
 
 def extract_table_pos(table_contour):
@@ -129,7 +129,10 @@ def extract_table_boxes(img, vertical_lines_img, horizontal_lines_img):
             box_x_start = max(vert_bboxes[j][0]-padding, 0)
             box_x_end = min(vert_bboxes[j+1][0]+padding, img.shape[1])
             box_loc = (box_x_start, box_x_end, line_y_start, line_y_end)
-            line[fields[n_field]] = crop_rect(img, *box_loc)
+            box_img = crop_rect(img, *box_loc)
+
+            is_empty = is_empty_of_text(box_img)
+            line[fields[n_field]] = dict(img=box_img, empty=is_empty)
         assert len(line.keys()) == len(fields.keys()), f'Expected to find all required columns for line, found only: {str(line.keys())}'
         lines.append(line)
     assert len(lines) == 5, f'Expected to find 5 lines in table, found: {len(lines)}'
@@ -178,13 +181,16 @@ def extract_bottom_boxes(img, horizontal_lines_img, padding=5):
     y_from = 0
     y_to = min(horiz_bboxes[0][1] + padding, img.shape[1])
 
-    line_imgs.append(img[y_from:y_to])
+    line_img = img[y_from:y_to]
+    is_empty = is_empty_of_text(line_img) 
+    line_imgs.append(dict(img=line_img, empty=is_empty))
     
     for i in range(expected_lines-1):
         y_from = max(horiz_bboxes[i][1], 0)
         y_to = min(horiz_bboxes[i+1][1] + padding, img.shape[1])
         line_img = img[y_from:y_to]
-        line_imgs.append(line_img)
+        is_empty = is_empty_of_text(line_img)      
+        line_imgs.append(dict(img=line_img, empty=is_empty))
 
     return line_imgs
 
@@ -222,29 +228,36 @@ def extract_blocks(img, debug=False):
         os.makedirs('tmp_imgs')
 
     img = rotate_horizontal(img)
-    save_np_img(img, 'tmp_imgs/0_0_rotated.png')
+    save_np_img(img, 'tmp_imgs/0_0_rotated.png') if debug else None
 
     img, angle = deskew(img)
-    save_np_img(img, 'tmp_imgs/0_0_deskewed.png')
+
+    save_np_img(img, 'tmp_imgs/0_0_deskewed.png')  if debug else None
 
     img = resize(img)
-    save_np_img(img, 'tmp_imgs/0_1_resized.png')
+
+    save_np_img(img, 'tmp_imgs/0_1_resized.png')  if debug else None
 
     img = denoise(img)
-    save_np_img(img, 'tmp_imgs/0_2_denoised.png')
+
+    save_np_img(img, 'tmp_imgs/0_2_denoised.png')  if debug else None
 
     img_blur = cv2.GaussianBlur(img, (3,3), 0)
-    save_np_img(img_blur, 'tmp_imgs/0_3_blur.png')
+
+    save_np_img(img_blur, 'tmp_imgs/0_3_blur.png')  if debug else None
 
     img_bin = binarize_image(img_blur)
-    save_np_img(img_bin, 'tmp_imgs/1_0_binarized_img.png')
+
+    save_np_img(img_bin, 'tmp_imgs/1_0_binarized_img.png')  if debug else None
 
     vertical_lines_img, horizontal_lines_img = get_lines_images(img_bin)
-    save_np_img(vertical_lines_img, 'tmp_imgs/1_1_vertical_lines.png')
-    save_np_img(horizontal_lines_img, 'tmp_imgs/1_2_horizontal_lines.png')
+
+    save_np_img(vertical_lines_img, 'tmp_imgs/1_1_vertical_lines.png')  if debug else None
+    save_np_img(horizontal_lines_img, 'tmp_imgs/1_2_horizontal_lines.png')  if debug else None
 
     rects_img = get_rectangles_image(vertical_lines_img, horizontal_lines_img)
-    save_np_img(rects_img, 'tmp_imgs/1_3_rectangles.png')
+
+    save_np_img(rects_img, 'tmp_imgs/1_3_rectangles.png')  if debug else None
 
     nonempty_cords = get_nonempty_bbox(rects_img)
 
@@ -253,28 +266,35 @@ def extract_blocks(img, debug=False):
     rects_img = crop_rect(rects_img, *nonempty_cords)
     vertical_lines_img = crop_rect(vertical_lines_img, *nonempty_cords)
     horizontal_lines_img = crop_rect(horizontal_lines_img, *nonempty_cords)
-    save_np_img(img, 'tmp_imgs/1_4_img_cropped_nonempty.png')
-    save_np_img(vertical_lines_img, 'tmp_imgs/1_5_vertical_lines_img_cropped_nonempty.png')
-    save_np_img(horizontal_lines_img, 'tmp_imgs/1_5_horizontal_lines_img_cropped_nonempty.png')
+
+    save_np_img(img, 'tmp_imgs/1_4_img_cropped_nonempty.png')  if debug else None
+
+    save_np_img(vertical_lines_img, 'tmp_imgs/1_5_vertical_lines_img_cropped_nonempty.png')  if debug else None
+
+    save_np_img(horizontal_lines_img, 'tmp_imgs/1_5_horizontal_lines_img_cropped_nonempty.png')  if debug else None
 
     # Countours only for debug output
-    if debug:
-        contours_img = get_contours_image(rects_img)
-        save_np_img(contours_img, 'tmp_imgs/3_0_contours.png')
+
+    contours_img = get_contours_image(rects_img)
+    save_np_img(contours_img, 'tmp_imgs/3_0_contours.png')  if debug else None
 
     table_loc, bottom_loc = find_table_and_bottom(img, img_bin, rects_img)
 
     table_img = crop_rect(img, *table_loc)
     bottom_img = crop_rect(img, *bottom_loc)
 
-    save_np_img(table_img, 'tmp_imgs/4_0_table.png')
-    save_np_img(bottom_img, 'tmp_imgs/4_1_bottom.png')
+
+    save_np_img(table_img, 'tmp_imgs/4_0_table.png')  if debug else None
+
+    save_np_img(bottom_img, 'tmp_imgs/4_1_bottom.png')  if debug else None
 
     bottom_img, bottom_deskew_angle = deskew(bottom_img)
-    save_np_img(bottom_img, 'tmp_imgs/4_3_bottom_deskew.png')
+
+    save_np_img(bottom_img, 'tmp_imgs/4_3_bottom_deskew.png')  if debug else None
 
     table_img = rotate_by_angle(table_img, bottom_deskew_angle)
-    save_np_img(table_img, 'tmp_imgs/4_2_table_deskew.png')
+
+    save_np_img(table_img, 'tmp_imgs/4_2_table_deskew.png')  if debug else None
 
 
     
@@ -282,25 +302,27 @@ def extract_blocks(img, debug=False):
     table_vertical_lines = rotate_by_angle(crop_rect(vertical_lines_img, *table_loc), bottom_deskew_angle, fill=0)
     table_horizontal_lines = rotate_by_angle(crop_rect(horizontal_lines_img, *table_loc), bottom_deskew_angle, fill=0)
 
-    save_np_img(table_vertical_lines, 'tmp_imgs/5_0_table_vertical_lines.png')
-    save_np_img(table_horizontal_lines, 'tmp_imgs/5_1_table_horizontal_lines.png')
+    save_np_img(table_vertical_lines, 'tmp_imgs/5_0_table_vertical_lines.png')  if debug else None
+    save_np_img(table_horizontal_lines, 'tmp_imgs/5_1_table_horizontal_lines.png') if debug else None
 
     lines = extract_table_boxes(table_img, table_vertical_lines, table_horizontal_lines)
 
-    os.makedirs('tmp_imgs/lines')
-    for i, line in enumerate(lines):
-        for key in line.keys():
-            save_np_img(line[key], f'tmp_imgs/lines/{i}_{key}.png')
+    if debug:
+        os.makedirs('tmp_imgs/lines')
+        for i, line in enumerate(lines):
+            for key in line.keys():
+                save_np_img(line[key]['img'], f'tmp_imgs/lines/{i}_{key}.png')
 
     bottom_horizontal_lines = rotate_by_angle(crop_rect(horizontal_lines_img, *bottom_loc), bottom_deskew_angle, fill=0)
 
-    save_np_img(bottom_horizontal_lines, 'tmp_imgs/5_2_bottom_horizontal_lines.png')
+    save_np_img(bottom_horizontal_lines, 'tmp_imgs/5_2_bottom_horizontal_lines.png') if debug else None
 
     bottom_line_imgs = extract_bottom_boxes(bottom_img, bottom_horizontal_lines)
 
-    os.makedirs('tmp_imgs/bottom')
-    for i, line_img in enumerate(bottom_line_imgs):
-        save_np_img(line_img, f'tmp_imgs/bottom/line_{i}.png')
+    if debug:   
+        os.makedirs('tmp_imgs/bottom')
+        for i, line_img in enumerate(bottom_line_imgs):
+            save_np_img(line_img['img'], f'tmp_imgs/bottom/line_{i}.png')
 
     result = {
         'table_lines': lines,
